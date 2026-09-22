@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>解題規劃書</title>
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--ink:#16181d;--mute:#5b6070;--line:#e3e6ee;--red:#d23e48;--amber:#c27a0e;--green:#1f8a5b;--navy:#1e3a5f}
+@media (prefers-color-scheme:dark){:root{--bg:#12141a;--card:#1b1e27;--ink:#eef0f5;--mute:#9aa0ae;--line:#2c303c;--navy:#8fb3e0}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 -apple-system,"PingFang TC","Noto Sans TC",sans-serif}
+main{max-width:860px;margin:auto;padding:24px 16px 60px}
+.eyebrow{color:var(--red);font-weight:800;letter-spacing:.12em;font-size:13px}h1{margin:.2em 0 .2em;font-size:28px}
+.sub{color:var(--mute);margin:0 0 18px}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:16px}
+section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:12px}
+section h2{font-size:17px;margin:0 0 2px;display:flex;justify-content:space-between;gap:8px;align-items:center}
+.hint{color:var(--mute);font-size:13px;margin:0 0 8px}
+textarea,input{font:inherit;width:100%;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--bg);color:var(--ink)}
+textarea{min-height:84px;resize:vertical}
+label.f{display:flex;flex-direction:column;font-size:12px;color:var(--mute);gap:2px}
+.nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:8px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0;align-items:center}
+button{font:inherit;font-weight:800;border:0;border-radius:999px;padding:9px 18px;background:var(--navy);color:#fff;cursor:pointer}
+button.ghost{background:transparent;color:var(--navy);border:2px solid var(--navy)}
+.score{font-size:12px;font-weight:800;padding:2px 10px;border-radius:999px;color:#fff;white-space:nowrap}
+.s0{background:var(--red)}.s1{background:var(--amber)}.s2,.s3{background:var(--green)}
+details{margin-top:6px}details summary{cursor:pointer;color:var(--navy);font-weight:700}
+small{color:var(--mute)}
+@media print{.bar,details,.noprint{display:none}section{break-inside:avoid}body{background:#fff}}
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">單元五 · 講義 p.291–292 解題規劃書八段架構</div>
+  <h1>解題規劃書</h1>
+  <p class="sub">八段各寫幾句。<b>第二段一定要填今天你自己做出來的數字</b>——那是你手上真的有的證據。寫的內容會自動存在這台電腦。</p>
+
+  <div class="meta">
+    <label class="f">部門<input id="dept" placeholder="例：品保課"></label>
+    <label class="f">撰寫人（職稱就好）<input id="author" placeholder="例：品保工程師"></label>
+    <label class="f">版本<input id="ver" value="v1（2026-09-22 課堂）"></label>
+  </div>
+
+  <div id="secs"></div>
+
+  <div class="bar">
+    <button id="print">列印／存成 PDF</button>
+    <button class="ghost" id="md">下載成文字檔（.md）</button>
+    <button class="ghost" id="clear">清空重寫</button>
+  </div>
+
+  <section class="noprint">
+    <h2>加碼：請 Jev 當評審 <small>可不做</small></h2>
+    <p class="hint">Jev 每一段打 0–3 分：0 空白或離題、1 有寫但沒有數字、2 具體有數字、3 具體有數字而且寫了怎麼驗收。它只打分、不改你的字。</p>
+    <div class="nums">
+      <label class="f">Jev 金鑰（只存在這個分頁）<input id="key" type="password" autocomplete="off"></label>
+      <label class="f">轉接站<input id="relay" value="https://jev.mileschen.dev"></label>
+    </div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-top:6px;width:auto;flex-direction:row"><input type="checkbox" id="classKey" style="width:auto"> 用課堂備用金鑰（沒有自己的金鑰時勾這個；老師的金鑰，有次數上限）</label>
+    <button id="judge">請 Jev 打分</button> <span id="jst"></span>
+  </section>
+</main>
+<script>
+const SECS = [
+  ['一、情境定義', '誰、在哪個工站、什麼痛點、現況數字。', '例：包裝站目檢封口，一班 2 人，每月約 3 件封口不良流到客戶端。'],
+  ['二、成功指標', '雙指標門檻、轉人工比例、效益估算。**填今天做出來的數字。**', '例：今天判定器盲測 40 張：漏檢 1、誤判 3、轉人工 20%。目標漏檢 0、轉人工 ≤ 15%。', true],
+  ['三、資料需求', '樣本或資料底座計畫、對齊鑰匙（批號／時間）、斷點清單。', '例：每站每天拍 200 張良品；檔名 = 批號_時間；斷點：封口機溫度沒記錄。'],
+  ['四、判定標準', '標準書要點、限度樣品規劃、人的一致性怎麼做。', '例：封口寬度 < 6 mm 判不良；限度樣品 3 組；兩位檢驗員先各判 30 張對齊。'],
+  ['五、分工與複判', '三段式門檻、複判流程、誰複判、多久內。', '例：不良機率 ≥ 0.8 攔下、0.3–0.8 轉人工、< 0.3 放行；複判由組長 2 小時內完成。'],
+  ['六、紀錄與合規', '最小紀錄集、版本三件套（標準書／限度樣品／模型）、紅線對照。', '例：記錄時間、工站、批號、判定、信心、複判結果；判定標準 v2 對應模型 v1。'],
+  ['七、時程與資源', 'POC 期間、人力工時、粗估成本。', '例：POC 6 週；品保 0.5 人、產線 0.2 人；治具＋光源約 5 萬元。'],
+  ['八、決策規則', '續行門檻、調整選項、停損條件（開始前就寫好）。', '例：6 週後漏檢 0 且轉人工 ≤ 15% → 擴到第二站；漏檢 > 0 → 先改光源再測 2 週；仍未達 → 停。'],
+];
+const KEY = 'u5-plan';
+const $ = s => document.querySelector(s);
+let data = {};
+try { data = JSON.parse(localStorage.getItem(KEY)) || {}; } catch {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch {} };
+
+$('#secs').innerHTML = SECS.map(([t, h, eg, nums], i) => `<section>
+  <h2><span>${t}</span><span class="score" id="sc${i}" hidden></span></h2>
+  <p class="hint">${h.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')}</p>
+  ${nums ? `<div class="nums">
+    <label class="f">單元一 盲測漏檢（張）<input data-n="u1miss" type="number" min="0"></label>
+    <label class="f">單元一 盲測誤判（張）<input data-n="u1fp" type="number" min="0"></label>
+    <label class="f">單元一 轉人工比例（%）<input data-n="u1rev" type="number" min="0" max="100"></label>
+    <label class="f">單元三 Jev 告警（批）<input data-n="u3jev" type="number" min="0"></label>
+    <label class="f">單元三 例外清單（批）<input data-n="u3ex" type="number" min="0"></label>
+  </div>` : ''}
+  <textarea data-s="${i}" placeholder="${eg}"></textarea>
+  <details><summary>看例子</summary><p class="hint">${eg}</p></details>
+</section>`).join('');
+
+for (const id of ['dept', 'author', 'ver']) { if (data[id]) $('#' + id).value = data[id]; $('#' + id).oninput = e => { data[id] = e.target.value; save(); }; }
+document.querySelectorAll('[data-s]').forEach(t => { t.value = data['s' + t.dataset.s] || ''; t.oninput = () => { data['s' + t.dataset.s] = t.value; save(); }; });
+document.querySelectorAll('[data-n]').forEach(t => { t.value = data[t.dataset.n] ?? ''; t.oninput = () => { data[t.dataset.n] = t.value; save(); }; });
+
+function sectionText(i) {
+  let s = data['s' + i] || '';
+  if (i === 1) {
+    const n = k => data[k] !== undefined && data[k] !== '' ? data[k] : '（未填）';
+    s = `今天實測：單元一盲測漏檢 ${n('u1miss')} 張、誤判 ${n('u1fp')} 張、轉人工 ${n('u1rev')}%；單元三 Jev 告警 ${n('u3jev')} 批、例外清單 ${n('u3ex')} 批。\n` + s;
+  }
+  return s;
+}
+$('#print').onclick = () => window.print();
+$('#md').onclick = () => {
+  const md = `# 解題規劃書\n\n部門：${data.dept || ''}　撰寫人：${data.author || ''}　版本：${data.ver || $('#ver').value}\n\n` +
+    SECS.map(([t], i) => `## ${t}\n\n${sectionText(i)}\n`).join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([md], { type: 'text/markdown' })); a.download = '解題規劃書.md'; a.click();
+};
+$('#clear').onclick = () => { if (confirm('全部清空？')) { data = {}; save(); location.reload(); } };
+
+try { $('#key').value = sessionStorage.getItem('jev-key') || ''; } catch {}
+$('#key').oninput = () => { try { sessionStorage.setItem('jev-key', $('#key').value.trim()); } catch {} };
+$('#judge').onclick = async () => {
+  const key = $('#classKey').checked ? 'class' : $('#key').value.trim(); if (!key) { $('#jst').textContent = '先貼金鑰，或勾「用課堂備用金鑰」'; return; }
+  const questions = {};
+  SECS.forEach(([t, h], i) => questions['s' + i] = { type: 'score', instructions: `評分「${t}」這一段（應包含：${h.replace(/\*\*/g, '')}）`,
+    criteria: ['空白或離題', '有寫，但沒有具體數字', '具體，有數字', '具體有數字，而且寫了怎麼驗收或判斷成敗'] });
+  const state = Object.fromEntries(SECS.map(([t], i) => [t, sectionText(i) || '（空白）']));
+  $('#jst').textContent = '評分中…';
+  try {
+    const r = await fetch($('#relay').value.replace(/\/$/, '') + '/v1/systemone', { method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+      body: JSON.stringify({ model: 'jev-latest', state, questions }) });
+    const j = await r.json(); if (!r.ok) throw new Error(j.error || j.detail?.message || r.status);
+    SECS.forEach((_, i) => {
+      const s = j.answers['s' + i].score, v = Math.max(0, Math.min(3, Math.round(s)));
+      const el = $('#sc' + i); el.hidden = false; el.className = 'score s' + v; el.textContent = `Jev ${s.toFixed(1)} / 3`;
+    });
+    $('#jst').textContent = '完成。分數最低的那一段，就是下一版要補的。';
+  } catch (e) { $('#jst').textContent = '失敗：' + e.message; }
+};
+</script>
+</body>
+</html>

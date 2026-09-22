@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>客戶來信分類</title>
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--ink:#16181d;--mute:#5b6070;--line:#e3e6ee;--red:#d23e48;--amber:#c27a0e;--green:#1f8a5b;--navy:#1e3a5f}
+@media (prefers-color-scheme:dark){:root{--bg:#12141a;--card:#1b1e27;--ink:#eef0f5;--mute:#9aa0ae;--line:#2c303c;--navy:#8fb3e0}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,"PingFang TC","Noto Sans TC",sans-serif}
+main{max-width:1100px;margin:auto;padding:24px 16px 48px}
+.eyebrow{color:var(--red);font-weight:800;letter-spacing:.12em;font-size:13px}h1{margin:.2em 0 .3em;font-size:28px}
+.sub{color:var(--mute);margin:0 0 16px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
+textarea,input{font:inherit;width:100%;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--bg);color:var(--ink)}
+textarea{min-height:190px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
+button{font:inherit;font-weight:800;border:0;border-radius:999px;padding:9px 18px;background:var(--navy);color:#fff;cursor:pointer}
+button:disabled{opacity:.45}
+.wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:14px}
+table{border-collapse:collapse;width:100%;min-width:820px}th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:12px;color:var(--mute)}
+.tag{font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap;color:#fff}
+.red{background:var(--red)}.amber{background:var(--amber)}.green{background:var(--green)}.navy{background:var(--navy)}
+.mail{max-width:360px;color:var(--mute);font-size:13px}
+.err{color:var(--red);font-weight:700}
+small{color:var(--mute)}
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">業務 · 單元三的 Jev 再用一次</div>
+  <h1>客戶來信分類</h1>
+  <p class="sub">把一堆客戶來信貼進來（每封之間空一行），Jev 幫每封判：<b>是哪一類、多急、要不要品保介入</b>。
+    「要不要品保介入」的機率套<b>三段式</b>（跟單元一同一招）：≥ 攔截線 → 品保立即介入；放行線～攔截線 → 轉人工確認；&lt; 放行線 → 不用品保。</p>
+
+  <div class="box">
+    <label><b>你的 Jev 金鑰</b> <small>只存在這個分頁，關掉就沒了；不會寫進檔案</small>
+      <input id="key" type="password" placeholder="apikey_… 或 sk-…" autocomplete="off"></label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-top:6px;width:auto;flex-direction:row"><input type="checkbox" id="classKey" style="width:auto"> 用課堂備用金鑰（沒有自己的金鑰時勾這個；老師的金鑰，有次數上限）</label>
+    <div class="row"><small>轉接站：</small><input id="relay" value="https://jev.mileschen.dev" style="max-width:320px"></div>
+  </div>
+
+  <div class="box">
+    <b>來信</b> <small>（範例是虛構的，客戶用代號）</small>
+    <textarea id="mails">A 公司採購：請問 5 mm 光學穿刺套管下個月能交 2,000 支嗎？麻煩回覆報價與交期。
+
+B 醫院：上週收到的一箱套管，有 3 支外包裝封口破損，已拍照，請盡快處理並說明原因。
+
+C 代理商：我們要送印尼註冊，需要 ISO 13485 證書、滅菌確效報告和 IFU 英文版，請問多久可以提供？
+
+D 公司工程師：你們的沖吸管接頭是 luer lock 嗎？可以接我們的幫浦嗎？
+
+E 醫院：手術中套管密封閥漏氣，已停用，請立即派人了解，這批還有 40 支在庫。</textarea>
+    <div class="row">
+      <button id="go">讓 Jev 判</button>
+      <label style="display:flex;align-items:center;gap:6px;width:auto">放行線<input id="lo" type="number" step="0.05" min="0" max="1" value="0.3" style="width:80px"></label><label style="display:flex;align-items:center;gap:6px;width:auto">攔截線<input id="hi" type="number" step="0.05" min="0" max="1" value="0.7" style="width:80px"></label>
+      <span id="st"></span>
+    </div>
+  </div>
+
+  <div class="wrap"><table>
+    <thead><tr><th>#</th><th>來信</th><th>類型</th><th>急迫度</th><th>品保介入機率</th><th>三段式</th></tr></thead>
+    <tbody id="tb"></tbody>
+  </table></div>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+try { $('#key').value = sessionStorage.getItem('jev-key') || ''; } catch {}
+$('#key').oninput = () => { try { sessionStorage.setItem('jev-key', $('#key').value.trim()); } catch {} };
+
+const TYPES = { quote: '詢價／交期', complaint: '客訴／品質異常', regulatory: '法規文件', technical: '技術問題', other: '其他' };
+const URG = ['不急', '這週內', '今天就要'];
+
+async function ask(mail) {
+  const body = { model: 'jev-latest', state: mail, questions: {
+    type: { type: 'choice', instructions: '這封客戶來信屬於哪一類', criteria: {
+      quote: '詢問價格、數量或交期', complaint: '反映產品瑕疵、損壞、使用中異常或客訴',
+      regulatory: '索取證書、確效報告、說明書等法規文件', technical: '詢問規格、相容性或使用方式', other: '以上皆非' } },
+    urgency: { type: 'score', instructions: '這封信需要多快回覆', criteria: ['一般詢問，不急', '這週內要回', '涉及病患安全或停線，今天就要處理'] },
+    qa: { type: 'noul', instructions: '這封信是否需要品保部門介入（產品品質、安全或不良）' },
+  } };
+  const r = await fetch($('#relay').value.replace(/\/$/, '') + '/v1/systemone', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ($('#classKey').checked ? 'class' : $('#key').value.trim()) }, body: JSON.stringify(body) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || j.detail?.message || r.status);
+  return j.answers;
+}
+
+$('#go').onclick = async () => {
+  if (!$('#key').value.trim() && !$('#classKey').checked) { $('#st').innerHTML = '<span class="err">先貼上你的 Jev 金鑰，或勾「用課堂備用金鑰」</span>'; return; }
+  const mails = $('#mails').value.split(/\n\s*\n/).map(s => s.trim()).filter(Boolean);
+  const lo = +$('#lo').value, hi = +$('#hi').value;
+  $('#go').disabled = true; $('#tb').innerHTML = '';
+  let done = 0;
+  for (const [i, m] of mails.entries()) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${i + 1}</td><td class="mail"></td><td colspan="4">判斷中…</td>`;
+    tr.querySelector('.mail').textContent = m;
+    $('#tb').appendChild(tr);
+    try {
+      const a = await ask(m);
+      const conf = a.type.confidence ?? 0;
+      const u = Math.round(a.urgency.score ?? 0);
+      const q = a.qa.noul;
+      const [cls, lab] = q >= hi ? ['red', '品保立即介入'] : q >= lo ? ['amber', '轉人工確認'] : ['green', '不用品保'];
+      tr.innerHTML = `<td>${i + 1}</td><td class="mail"></td>
+        <td><span class="tag navy">${TYPES[a.type.choice] || a.type.choice}</span><br><small>信心 ${conf.toFixed(2)}</small></td>
+        <td><span class="tag ${['green', 'amber', 'red'][u] || 'amber'}">${URG[u] || u}</span></td>
+        <td><b>${q.toFixed(2)}</b></td>
+        <td><span class="tag ${cls}">${lab}</span></td>`;
+      tr.querySelector('.mail').textContent = m;
+    } catch (e) { tr.lastElementChild.innerHTML = `<span class="err">失敗：${e.message}</span>`; }
+    $('#st').textContent = `${++done}／${mails.length}`;
+  }
+  $('#go').disabled = false;
+};
+</script>
+</body>
+</html>

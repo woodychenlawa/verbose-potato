@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>到期追蹤表</title>
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--ink:#16181d;--mute:#5b6070;--line:#e3e6ee;--red:#d23e48;--amber:#c27a0e;--green:#1f8a5b;--navy:#1e3a5f}
+@media (prefers-color-scheme:dark){:root{--bg:#12141a;--card:#1b1e27;--ink:#eef0f5;--mute:#9aa0ae;--line:#2c303c;--navy:#8fb3e0}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,"PingFang TC","Noto Sans TC",sans-serif}
+main{max-width:980px;margin:auto;padding:24px 16px 48px}
+.eyebrow{color:var(--red);font-weight:800;letter-spacing:.12em;font-size:13px}h1{margin:.2em 0 .3em;font-size:28px}
+.sub{color:var(--mute);margin:0 0 16px}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.filters button{font:inherit;font-weight:700;border:2px solid var(--navy);color:var(--navy);background:transparent;border-radius:999px;padding:5px 14px;cursor:pointer}
+.filters button.on{background:var(--navy);color:#fff}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin-bottom:10px;display:grid;grid-template-columns:110px 1fr auto;gap:10px;align-items:center}
+.card b{font-size:16px}.meta{color:var(--mute);font-size:13px}
+.tag{font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;color:#fff;white-space:nowrap}
+.red{background:var(--red)}.amber{background:var(--amber)}.green{background:var(--green)}
+.cat{font-size:12px;font-weight:700;color:var(--navy)}
+form{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin:16px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+form label{display:flex;flex-direction:column;font-size:12px;color:var(--mute);gap:2px}
+form input,form select{font:inherit;border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:var(--bg);color:var(--ink)}
+button.go{font:inherit;font-weight:700;border:0;border-radius:999px;padding:8px 16px;background:var(--navy);color:#fff;cursor:pointer}
+.ics{background:transparent;border:0;color:var(--navy);font-weight:700;cursor:pointer;text-decoration:underline}
+@media (max-width:600px){.card{grid-template-columns:1fr}}
+footer{color:var(--mute);font-size:12px;margin-top:14px}
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">行政／人資 · 證照、校正、合約都會到期</div>
+  <h1>到期追蹤表</h1>
+  <p class="sub">把會到期的東西放在一起：人員證照、儀器校正、供應商合約、ISO 證書。<b>30 天內變黃、過期變紅</b>，每一筆都能下載成行事曆提醒。</p>
+  <div class="filters" id="filters"></div>
+  <div id="list"></div>
+  <form id="f">
+    <label>類別<select name="cat"><option>人員證照</option><option>儀器校正</option><option>供應商合約</option><option>體系證書</option><option>其他</option></select></label>
+    <label>項目<input name="name" required placeholder="例：游標卡尺 QC-07 校正"></label>
+    <label>到期日<input name="due" type="date" required></label>
+    <label>負責職稱<input name="who" placeholder="例：品保工程師"></label>
+    <button class="go">加入</button>
+  </form>
+  <footer>資料只存在這台電腦的瀏覽器裡。行事曆檔（.ics）可以匯入 Google 日曆或 Outlook，會在到期前 30 天提醒。</footer>
+</main>
+<script>
+const KEY = 'u5-due-items';
+const $ = s => document.querySelector(s);
+const day = 864e5, iso = d => new Date(d).toISOString().slice(0, 10), today = new Date(iso(Date.now())).getTime();
+const SAMPLE = [
+  ['儀器校正', '游標卡尺 QC-07', 12, '品保工程師'], ['儀器校正', '拉力試驗機 T-02', -3, '品保工程師'],
+  ['人員證照', '滅菌作業人員訓練 · 檢驗員甲', 45, '人資專員'], ['人員證照', '潔淨室作業資格 · 作業員乙', 20, '人資專員'],
+  ['供應商合約', 'A 公司 醫療級塑料供應合約', 75, '採購'], ['體系證書', 'ISO 13485 證書（外部稽核）', 160, '管理代表'],
+];
+let items;
+try { items = JSON.parse(localStorage.getItem(KEY)); } catch {}
+if (!Array.isArray(items)) items = SAMPLE.map(([cat, name, off, who]) => ({ cat, name, due: iso(Date.now() + off * day), who }));
+let filter = '全部';
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(items)); } catch {} };
+
+function render() {
+  const cats = ['全部', ...new Set(items.map(x => x.cat))];
+  $('#filters').innerHTML = cats.map(c => `<button class="${c === filter ? 'on' : ''}" data-c="${c}">${c}</button>`).join('');
+  const list = items.map((x, i) => ({ ...x, i, left: Math.round((new Date(x.due).getTime() - today) / day) }))
+    .filter(x => filter === '全部' || x.cat === filter).sort((a, b) => a.left - b.left);
+  $('#list').innerHTML = list.map(x => {
+    const [cls, lab] = x.left < 0 ? ['red', `過期 ${-x.left} 天`] : x.left <= 30 ? ['amber', `剩 ${x.left} 天`] : ['green', `剩 ${x.left} 天`];
+    return `<div class="card"><span class="tag ${cls}">${lab}</span>
+      <div><span class="cat">${x.cat}</span><br><b></b><div class="meta">到期 ${x.due}${x.who ? ' · ' + x.who : ''}</div></div>
+      <div><button class="ics" data-ics="${x.i}">加到行事曆</button> <button class="ics" data-del="${x.i}">刪除</button></div></div>`;
+  }).join('') || '<p class="sub">沒有項目。</p>';
+  // 名稱用 textContent 放，避免有人打了 <tag> 進去
+  [...$('#list').querySelectorAll('.card b')].forEach((b, k) => b.textContent = list[k].name);
+}
+$('#filters').onclick = e => { if (e.target.dataset.c) { filter = e.target.dataset.c; render(); } };
+$('#list').onclick = e => {
+  const d = e.target.dataset;
+  if (d.del != null) { items.splice(+d.del, 1); save(); render(); }
+  if (d.ics != null) {
+    const x = items[+d.ics], dt = x.due.replace(/-/g, '');
+    const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//u5//due//ZH', 'BEGIN:VEVENT', `UID:${Date.now()}@u5`,
+      `DTSTART;VALUE=DATE:${dt}`, `SUMMARY:到期：${x.name}`, `DESCRIPTION:${x.cat}${x.who ? '，負責：' + x.who : ''}`,
+      'BEGIN:VALARM', 'TRIGGER:-P30D', 'ACTION:DISPLAY', 'DESCRIPTION:30 天後到期', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
+    a.download = `到期-${x.name}.ics`; a.click();
+  }
+};
+$('#f').onsubmit = e => {
+  e.preventDefault(); const f = new FormData(e.target);
+  items.push(Object.fromEntries(f)); save(); e.target.reset(); render();
+};
+render();
+</script>
+</body>
+</html>

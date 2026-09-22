@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "規範轉檢查清單",
+  "version": "1.0",
+  "description": "在網頁上選一段規範文字，右鍵一按，整理成可以勾選的檢查清單。不連網、不用 AI、不用金鑰。",
+  "permissions": ["contextMenus", "storage"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "規範轉檢查清單" }
+}

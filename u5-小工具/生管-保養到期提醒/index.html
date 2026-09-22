@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>保養到期提醒</title>
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--ink:#16181d;--mute:#5b6070;--line:#e3e6ee;--red:#d23e48;--amber:#c27a0e;--green:#1f8a5b;--navy:#1e3a5f}
+@media (prefers-color-scheme:dark){:root{--bg:#12141a;--card:#1b1e27;--ink:#eef0f5;--mute:#9aa0ae;--line:#2c303c;--navy:#8fb3e0}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,"PingFang TC","Noto Sans TC",sans-serif}
+main{max-width:1000px;margin:auto;padding:24px 16px 48px}
+.eyebrow{color:var(--red);font-weight:800;letter-spacing:.12em;font-size:13px}h1{margin:.2em 0 .3em;font-size:28px}
+.sub{color:var(--mute);margin:0 0 16px}
+.kpi{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.kpi span{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 14px}
+.wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:14px}
+table{border-collapse:collapse;width:100%;min-width:760px}th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left}
+th{font-size:12px;color:var(--mute)}td input{font:inherit;width:100%;border:1px solid var(--line);border-radius:8px;padding:4px 6px;background:var(--bg);color:var(--ink)}
+.tag{font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap;color:#fff}
+.red{background:var(--red)}.amber{background:var(--amber)}.green{background:var(--green)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+button{font:inherit;font-weight:700;border:0;border-radius:999px;padding:8px 16px;background:var(--navy);color:#fff;cursor:pointer}
+button.ghost{background:transparent;color:var(--navy);border:2px solid var(--navy)}
+.x{background:transparent;color:var(--mute);padding:2px 8px}
+footer{color:var(--mute);font-size:12px;margin-top:14px}
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">生管 · 講義 p.281 設備預警與預防性保養</div>
+  <h1>保養到期提醒</h1>
+  <p class="sub">每台設備填「多久保養一次」和「上次保養日」，自動算出下次到期。<b>過期紅、7 天內黃</b>，按到期日排好。</p>
+  <div class="kpi" id="kpi"></div>
+  <div class="bar">
+    <button id="add">＋ 新增一台</button>
+    <button class="ghost" id="exp">下載 CSV</button>
+    <label class="ghost" style="display:inline-block;border:2px solid var(--navy);color:var(--navy);border-radius:999px;padding:6px 14px;font-weight:700;cursor:pointer">匯入 CSV<input type="file" id="imp" accept=".csv" hidden></label>
+  </div>
+  <div class="wrap"><table>
+    <thead><tr><th>設備</th><th>保養項目</th><th>週期（天）</th><th>上次保養</th><th>下次到期</th><th>剩幾天</th><th>負責職稱</th><th></th></tr></thead>
+    <tbody id="tb"></tbody>
+  </table></div>
+  <footer>資料只存在這台電腦的瀏覽器裡（localStorage），不會上傳。停機安排仍由生管與設備權責決定（講義 p.281「決策仍在人」）。</footer>
+</main>
+<script>
+const KEY = 'u5-pm-rows';
+const SAMPLE = [
+  ['射出機 M1', '模具清潔與頂針檢查', 14, -16, '成型課長'],
+  ['射出機 M2', '液壓油更換', 180, -175, '設備工程師'],
+  ['射出機 M3', '加熱圈電流量測', 30, -10, '設備工程師'],
+  ['EO 滅菌櫃', '溫濕度感測器校正', 90, -92, '品保工程師'],
+  ['潔淨室 A 區', 'HEPA 壓差檢查', 7, -5, '廠務'],
+  ['包裝封口機', '封口溫度與強度測試', 30, -3, '包裝組長'],
+];
+const $ = s => document.querySelector(s);
+const day = 864e5;
+const iso = d => new Date(d).toISOString().slice(0, 10);
+let rows;
+try { rows = JSON.parse(localStorage.getItem(KEY)); } catch {}
+if (!Array.isArray(rows)) rows = SAMPLE.map(([m, t, c, off, who]) => ({ m, t, c, last: iso(Date.now() + off * day), who }));
+
+function save() { try { localStorage.setItem(KEY, JSON.stringify(rows)); } catch {} }
+function calc(r) {
+  const next = new Date(r.last).getTime() + (+r.c || 0) * day;
+  const left = Math.floor((next - new Date(iso(Date.now())).getTime()) / day);
+  return { next: isNaN(next) ? '' : iso(next), left };
+}
+function render() {
+  const order = rows.map((r, i) => ({ r, i, ...calc(r) })).sort((a, b) => a.left - b.left);
+  $('#tb').innerHTML = order.map(({ r, i, next, left }) => {
+    const [cls, lab] = left < 0 ? ['red', `過期 ${-left} 天`] : left <= 7 ? ['amber', `${left} 天`] : ['green', `${left} 天`];
+    return `<tr data-i="${i}">
+      <td><input data-k="m" value="${r.m}"></td><td><input data-k="t" value="${r.t}"></td>
+      <td><input data-k="c" type="number" min="1" value="${r.c}" style="width:80px"></td>
+      <td><input data-k="last" type="date" value="${r.last}"></td>
+      <td>${next}</td><td><span class="tag ${cls}">${lab}</span></td>
+      <td><input data-k="who" value="${r.who}"></td><td><button class="x" data-del="${i}">✕</button></td></tr>`;
+  }).join('');
+  const c = order.reduce((a, o) => (a[o.left < 0 ? 0 : o.left <= 7 ? 1 : 2]++, a), [0, 0, 0]);
+  $('#kpi').innerHTML = `<span>🔴 過期 <b>${c[0]}</b></span><span>🟡 7 天內 <b>${c[1]}</b></span><span>🟢 還早 <b>${c[2]}</b></span>`;
+}
+$('#tb').addEventListener('change', e => {
+  const tr = e.target.closest('tr'); const k = e.target.dataset.k; if (!tr || !k) return;
+  rows[+tr.dataset.i][k] = e.target.value; save(); render();
+});
+$('#tb').addEventListener('click', e => { const d = e.target.dataset.del; if (d != null) { rows.splice(+d, 1); save(); render(); } });
+$('#add').onclick = () => { rows.push({ m: '新設備', t: '保養項目', c: 30, last: iso(Date.now()), who: '' }); save(); render(); };
+$('#exp').onclick = () => {
+  const csv = '設備,保養項目,週期天,上次保養,負責職稱\n' + rows.map(r => [r.m, r.t, r.c, r.last, r.who].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv' })); a.download = '保養清單.csv'; a.click();
+};
+$('#imp').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  const lines = (await f.text()).replace(/^﻿/, '').trim().split(/\r?\n/).slice(1);
+  rows = lines.map(l => l.split(',').map(v => v.replace(/^"|"$/g, ''))).map(([m, t, c, last, who]) => ({ m, t, c, last, who }));
+  save(); render();
+};
+render();
+</script>
+</body>
+</html>
